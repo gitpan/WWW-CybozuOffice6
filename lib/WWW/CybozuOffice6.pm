@@ -12,7 +12,7 @@ package WWW::CybozuOffice6;
 use 5.006;
 use strict;
 use warnings;
-use fields qw(url user pass ua response ocode);
+use fields qw(url user id pass ua response ocode);
 use vars qw($VERSION);
 
 use Carp;
@@ -22,7 +22,7 @@ use Text::CSV_XS;
 use URI::Escape;
 
 
-$VERSION = 0.02;
+$VERSION = 0.03;
 
 
 # instantiation
@@ -30,14 +30,14 @@ sub new {
     # setup
     my WWW::CybozuOffice6 $self = shift;
     unless (ref $self) {
-	$self = fields::new($self);
+        $self = fields::new($self);
     }
     # set params
     while ($#_ >= 0) {
-	croak('CybozuOffice65->new() called with odd number of option parameters - should be of the form option => value') if ($#_ == 0);
-	my $n = lc(shift);
-	my $v = shift;
-	$self->_init_param($n, $v);
+        croak('CybozuOffice65->new() called with odd number of option parameters - should be of the form option => value') if ($#_ == 0);
+        my $n = lc(shift);
+        my $v = shift;
+        $self->_init_param($n, $v);
     }
     # set default
     $self->{ua} = LWP::UserAgent->new() unless defined($self->{ua});
@@ -55,6 +55,11 @@ sub url (\$@) {
 sub user (\$@) {
     my $self = shift;
     return $self->_accessor('user', @_);
+}
+
+sub id (\$@) {
+    my $self = shift;
+    return $self->_accessor('id', @_);
 }
 
 sub password (\$@) {
@@ -90,10 +95,11 @@ sub externalAPINotify (\$) {
     my $self = shift;
     # get RSS
     if (! $self->_request('ExternalAPINotify')) {
-	return;
+        return;
     }
     # parse and return the result
     my $content = Jcode::convert($self->{response}->content, $self->{ocode});
+print $content,"\n";
     return $self->parse_externalAPINotify($content);
 }
 
@@ -104,30 +110,30 @@ sub parse_externalAPINotify (\$$) {
     my @lines = split(/\x0d\x0a/, $content);
     # check first line
     if ($#lines == -1 || $lines[0] !~ /ts\./) {
-	return;
+        return;
     }
     shift(@lines);
     # parse the rest (but not the last line)
     my $csv = Text::CSV_XS->new({ binary => 1 });
     while ($#lines > 0) {
-	my $line = shift(@lines);
-	if (! $csv->parse($line)) {
-	    croak 'failed to parse CSV input';
-	}
-	my @fields = $csv->fields;
-	if ($#fields < 6) {
-	    croak 'unexpected number of fields in CSV';
-	}
-	my $item = {
-	    app => $fields[0],
-	    app_jp => $fields[1],
-	    timestamp => $fields[3],
-	    title => $fields[4],
-	    description => $fields[5],
-	    from => $fields[6],
-	    link => $fields[7] };
-	$item->{timestamp} =~ s/^ts\.//;
-	push(@items, $item);
+        my $line = shift(@lines);
+        if (! $csv->parse($line)) {
+            croak 'failed to parse CSV input';
+        }
+        my @fields = $csv->fields;
+        if ($#fields < 6) {
+            croak 'unexpected number of fields in CSV';
+        }
+        my $item = {
+            app => $fields[0],
+            app_jp => $fields[1],
+            timestamp => $fields[3],
+            title => $fields[4],
+            description => $fields[5],
+            from => $fields[6],
+            link => $fields[7] };
+        $item->{timestamp} =~ s/^ts\.//;
+        push(@items, $item);
     }
     
     return \@items;
@@ -144,7 +150,7 @@ sub _accessor (\$$@) {
     my $self = shift;
     my $name = shift;
     if ($#_ <=> -1) {
-	$self->{$name} = $_[0];
+        $self->{$name} = $_[0];
     }
     return $self->{$name};
 }
@@ -153,15 +159,16 @@ sub _accessor (\$$@) {
 sub _request (\$$) {
     my ($self, $page) = @_;
     croak 'url not set' unless defined($self->{url});
-    croak 'user not set' unless defined($self->{user});
+    croak 'user/id not set' unless defined $self->{user} or defined $self->{id};
     croak 'password not set' unless defined($self->{pass});
     $self->{response} =
-	$self->{ua}->post($self->{url} . '?page=' . uri_escape($page),
-			  { _System => 'login',
-			    _Login => '1',
-			    GuideNavi => '1',
-			    _Account => $self->{user},
-			    Password => $self->{pass} });
+        $self->{ua}->post($self->{url} . '?page=' . uri_escape($page),
+                          { _System => 'login',
+                            _Login => '1',
+                            GuideNavi => '1',
+                            defined $self->{user} ? (_Account => $self->{user}) : (),
+                            defined $self->{id} ? (_Id => $self->{id}) : (),
+                            Password => $self->{pass} });
     return $self->{response}->is_success;
 }
 
