@@ -22,7 +22,7 @@ use Text::CSV_XS;
 use URI::Escape;
 
 
-$VERSION = 0.03;
+$VERSION = 0.04;
 
 
 # instantiation
@@ -99,7 +99,6 @@ sub externalAPINotify (\$) {
     }
     # parse and return the result
     my $content = Jcode::convert($self->{response}->content, $self->{ocode});
-print $content,"\n";
     return $self->parse_externalAPINotify($content);
 }
 
